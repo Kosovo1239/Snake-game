@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Snake Quest Shop Game</title>
+  <style>
+
+    button {
+  margin: 10px;
+  padding: 10px 20px;
+  font-size: 16px;
+  touch-action: manipulation;
+}
+
+    * { box-sizing: border-box; font-family: sans-serif; }
+    body { margin: 0; background: #111; color: white; text-align: center; }
+    canvas { background: #000; display: block; margin: 20px auto; }
+    #menu, #game, #shop { display: none; }
+    button { margin: 10px; padding: 10px 20px; font-size: 16px; }
+  </style>
+</head>
+<body>
+
+<div id="menu">
+  <h1>🐍 Snake Game – Quest & Shop</h1>
+  <p>Punkte: <span id="points">0</span></p>
+  <button onclick="startGame()">▶ Spiel starten</button>
+  <button onclick="openShop()">🛒 Shop öffnen</button>
+  <div id="quests"></div>
+</div>
+
+<div id="shop">
+  <h2>🛒 Shop</h2>
+  <p>Verfügbar: <span id="shopPoints">0</span> Punkte</p>
+  <button onclick="buyItem('shield', 30)">🛡 Schild (30)</button>
+  <button onclick="buyItem('nuke', 50)">💥 Zerstörung (50)</button>
+  <button onclick="buyItem('boost', 20)">⚡ Speed Boost (20)</button>
+  <p><button onclick="backToMenu()">Zurück zum Menü</button></p>
+</div>
+
+<div id="game">
+  <canvas id="gameCanvas" width="400" height="400"></canvas>
+  <div id="mobileControls" style="margin-top:10px;">
+  <div style="display:flex; justify-content:center; gap:10px; flex-wrap: wrap;">
+    <button onclick="setDirection(0,-1)">⬆️</button>
+    <div>
+      <button onclick="setDirection(-1,0)">⬅️</button>
+      <button onclick="setDirection(1,0)">➡️</button>
+    </div>
+    <button onclick="setDirection(0,1)">⬇️</button>
+  </div>
+  <div style="margin-top:10px;">
+    <button onclick="useItem('shield')">🛡</button>
+    <button onclick="useItem('nuke')">💥</button>
+    <button onclick="useItem('boost')">⚡</button>
+  </div>
+</div>
+
+  <p>Inventar: <span id="inventory"></span></p>
+  <p>Punkte: <span id="score">0</span></p>
+  <p>Benutze 1 = Schild 🛡 | 2 = Zerstörung 💥 | 3 = Boost ⚡</p>
+</div>
+
+<script>
+let canvas = document.getElementById("gameCanvas");
+let ctx = canvas.getContext("2d");
+
+let gridSize = 20;
+let snake = [{x: 10, y: 10}];
+let dx = 1, dy = 0;
+let apple = {x: 15, y: 15};
+let running = false;
+let score = 0;
+let inventory = {};
+let points = 0;
+let quests = [];
+let currentQuest = null;
+let speed = 200;
+
+function startGame() {
+  document.getElementById("menu").style.display = "none";
+  document.getElementById("game").style.display = "block";
+  snake = [{x: 10, y: 10}];
+  dx = 1; dy = 0;
+  score = 0;
+  placeApple();
+  running = true;
+  updateInventoryDisplay();
+  gameLoop();
+}
+
+function openShop() {
+  document.getElementById("menu").style.display = "none";
+  document.getElementById("shop").style.display = "block";
+  document.getElementById("shopPoints").textContent = points;
+}
+
+function backToMenu() {
+  document.getElementById("menu").style.display = "block";
+  document.getElementById("shop").style.display = "none";
+}
+
+function buyItem(item, cost) {
+  if (points >= cost) {
+    inventory[item] = (inventory[item] || 0) + 1;
+    points -= cost;
+    alert(item + " gekauft!");
+    document.getElementById("shopPoints").textContent = points;
+  } else {
+    alert("Nicht genug Punkte!");
+  }
+}
+
+function updateInventoryDisplay() {
+  let text = Object.entries(inventory).map(([key, val]) => `${key} (${val})`).join(", ");
+  document.getElementById("inventory").textContent = text || "leer";
+}
+
+function placeApple() {
+  apple.x = Math.floor(Math.random() * (canvas.width / gridSize));
+  apple.y = Math.floor(Math.random() * (canvas.height / gridSize));
+}
+
+function drawBlock(x, y, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x * gridSize, y * gridSize, gridSize - 1, gridSize - 1);
+}
+
+function gameLoop() {
+  if (!running) return;
+  setTimeout(gameLoop, speed);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  let head = {x: snake[0].x + dx, y: snake[0].y + dy};
+
+  if (head.x < 0 || head.y < 0 || head.x >= canvas.width / gridSize || head.y >= canvas.height / gridSize || snake.some(s => s.x === head.x && s.y === head.y)) {
+    running = false;
+    alert("Game Over");
+    document.getElementById("game").style.display = "none";
+    document.getElementById("menu").style.display = "block";
+    document.getElementById("points").textContent = points;
+    createQuest(); // neue Quest nach jedem Spiel
+    return;
+  }
+
+  snake.unshift(head);
+
+  if (head.x === apple.x && head.y === apple.y) {
+    score++;
+    points++;
+    document.getElementById("score").textContent = score;
+    placeApple();
+    if (currentQuest && score >= currentQuest.goal) {
+      alert("Quest abgeschlossen! + " + currentQuest.reward + " Punkte");
+      points += currentQuest.reward;
+      currentQuest = null;
+      document.getElementById("points").textContent = points;
+    }
+  } else {
+    snake.pop();
+  }
+
+  drawBlock(apple.x, apple.y, "red");
+  snake.forEach((s, i) => drawBlock(s.x, s.y, i === 0 ? "lime" : "green"));
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowUp" && dy === 0) { dx = 0; dy = -1; }
+  if (e.key === "ArrowDown" && dy === 0) { dx = 0; dy = 1; }
+  if (e.key === "ArrowLeft" && dx === 0) { dx = -1; dy = 0; }
+  if (e.key === "ArrowRight" && dx === 0) { dx = 1; dy = 0; }
+
+  if (e.key === "1" && inventory.shield > 0) {
+    alert("🛡 Schild aktiv! Du bist für 5 Sekunden unbesiegbar!");
+    inventory.shield--; updateInventoryDisplay();
+    let oldCheck = gameLoop;
+    running = false;
+    setTimeout(() => { running = true; gameLoop(); }, 5000);
+  }
+
+  if (e.key === "2" && inventory.nuke > 0) {
+    alert("💥 Zerstörung! +3 Punkte");
+    inventory.nuke--; score += 3; points += 3;
+    document.getElementById("score").textContent = score;
+    updateInventoryDisplay();
+  }
+
+  if (e.key === "3" && inventory.boost > 0) {
+    alert("⚡ Speed Boost für 5 Sekunden!");
+    inventory.boost--;
+    speed = 100;
+    updateInventoryDisplay();
+    setTimeout(() => { speed = 200; }, 5000);
+  }
+});
+
+function createQuest() {
+  let questsDiv = document.getElementById("quests");
+  questsDiv.innerHTML = "<h3>Neue Quest verfügbar!</h3>";
+  let goal = Math.floor(Math.random() * 10) + 5;
+  let reward = Math.floor(goal * 2 + Math.random() * 10);
+  currentQuest = { goal, reward };
+  questsDiv.innerHTML += `<p>Erreiche ${goal} Punkte in einem Spiel → Erhalte ${reward} Punkte!</p>`;
+
+}
+
+window.onload = () => {
+  document.getElementById("menu").style.display = "block";
+  createQuest();
+};
+
+function setDirection(x, y) {
+  if ((x === 0 && dy === 0) || (y === 0 && dx === 0)) {
+    dx = x;
+    dy = y;
+  }
+}
+
+function useItem(type) {
+  if (type === "shield" && inventory.shield > 0) {
+    alert("🛡 Schild aktiv! Du bist für 5 Sekunden unbesiegbar!");
+    inventory.shield--; updateInventoryDisplay();
+    let wasRunning = running;
+    running = false;
+    setTimeout(() => { running = wasRunning; gameLoop(); }, 5000);
+  }
+  if (type === "nuke" && inventory.nuke > 0) {
+    alert("💥 Zerstörung! +3 Punkte");
+    inventory.nuke--; score += 3; points += 3;
+    document.getElementById("score").textContent = score;
+    updateInventoryDisplay();
+  }
+  if (type === "boost" && inventory.boost > 0) {
+    alert("⚡ Speed Boost für 5 Sekunden!");
+    inventory.boost--; speed = 100;
+    updateInventoryDisplay();
+    setTimeout(() => { speed = 200; }, 5000);
+  }
+}
+
+</script>
+
+</body>
+</html>
